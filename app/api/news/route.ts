@@ -18,7 +18,9 @@ const RSS_FEEDS: RSSFeed[] = [
   },
 ];
 
-const STATE_FILE = join(process.cwd(), 'data', 'news.json');
+const STATE_FILE = process.env.NODE_ENV === 'production'
+  ? '/tmp/news.json'
+  : join(process.cwd(), 'data', 'news.json');
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -66,8 +68,10 @@ function readState(): NewsState | null {
 }
 
 function writeState(state: NewsState): void {
-  const dir = join(process.cwd(), 'data');
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  if (process.env.NODE_ENV !== 'production') {
+    const dir = join(process.cwd(), 'data');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  }
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
