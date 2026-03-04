@@ -14,6 +14,20 @@ const RSS_FEEDS = [
   },
 ];
 
+// Known adtech/marketing sources
+const ADTECH_SOURCES = [
+  'AdExchanger',
+  'Digiday',
+  'Google Ads Blog',
+  'Google News (AdTech)',
+  'Ad Age',
+  'Marketing Land',
+  'Marketing Brew',
+  'AdWeek',
+  'The Drum',
+  'MarTech',
+];
+
 // Ad-tech related keywords for filtering
 const ADTECH_KEYWORDS = [
   // Core ad-tech terms
@@ -52,9 +66,31 @@ function generateId(url, title, date) {
   return createHash('md5').update(input).digest('hex');
 }
 
-function isAdTechRelated(title) {
-  const searchText = title.toLowerCase();
+function hasAdTechKeywords(text) {
+  if (!text) return false;
+  const searchText = text.toLowerCase();
   return ADTECH_KEYWORDS.some(keyword => searchText.includes(keyword.toLowerCase()));
+}
+
+function calculateRelevanceScore(article) {
+  let score = 0;
+
+  // +2 points if title contains adtech keywords
+  if (hasAdTechKeywords(article.title)) {
+    score += 2;
+  }
+
+  // +1 point if description contains adtech keywords
+  if (hasAdTechKeywords(article.description)) {
+    score += 1;
+  }
+
+  // +1 point if source is known adtech/marketing media
+  if (ADTECH_SOURCES.includes(article.source)) {
+    score += 1;
+  }
+
+  return score;
 }
 
 async function fetchFeed(feed) {
@@ -75,10 +111,12 @@ async function fetchFeed(feed) {
       .map(item => {
         const url = item.link || item.guid || '';
         const publishedAt = item.pubDate || item.isoDate || new Date().toISOString();
+        const description = item.contentSnippet || item.summary || item.description || '';
 
         return {
           id: generateId(url, item.title, publishedAt),
           title: item.title,
+          description,
           url,
           source: feed.name,
           publishedAt,
@@ -105,36 +143,54 @@ async function main() {
     const allItems = feedResults.flat();
     console.log(`[Fetch News] Total articles fetched: ${allItems.length}`);
 
-    // Filter for ad-tech related articles
-    const adTechItems = allItems.filter(item => isAdTechRelated(item.title));
-    console.log(`[Fetch News] Filtered to ${adTechItems.length} ad-tech related articles`);
-
-    // Deduplicate by ID
+    // Deduplicate by ID first
     const uniqueItems = Array.from(
-      new Map(adTechItems.map(item => [item.id, item])).values()
+      new Map(allItems.map(item => [item.id, item])).values()
     );
     console.log(`[Fetch News] After deduplication: ${uniqueItems.length} unique articles`);
 
-    // Sort by published date (newest first)
-    uniqueItems.sort((a, b) => {
-      const dateA = new Date(a.publishedAt).getTime();
-      const dateB = new Date(b.publishedAt).getTime();
-      return dateB - dateA;
+    // Calculate relevance score for each article
+    const scoredItems = uniqueItems.map(item => ({
+      ...item,
+      score: calculateRelevanceScore(item),
+    }));
+
+    // Filter articles with score >= 1
+    let relevantItems = scoredItems.filter(item => item.score >= 1);
+    console.log(`[Fetch News] Articles with score >= 1: ${relevantItems.length}`);
+
+    // Fallback: if fewer than 10 articles, take latest 10 from all items
+    if (relevantItems.length < 10) {
+      console.log('[Fetch News] Fewer than 10 relevant articles, using fallback: latest 10 articles');
+      relevantItems = scoredItems
+        .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+        .slice(0, 10);
+    }
+
+    // Sort by score first (highest score first), then by date (newest first)
+    relevantItems.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
     });
 
     // Take top 30
-    const top30 = uniqueItems.slice(0, 30);
+    const top30 = relevantItems.slice(0, 30);
+
+    // Remove score from final output (internal use only)
+    const finalItems = top30.map(({ score, ...item }) => item);
 
     // Write to public/news.json
     const outputPath = join(process.cwd(), 'public', 'news.json');
     const outputData = {
-      items: top30,
+      items: finalItems,
       generatedAt: new Date().toISOString(),
       totalSources: RSS_FEEDS.length,
     };
 
     writeFileSync(outputPath, JSON.stringify(outputData, null, 2));
-    console.log(`[Fetch News] Successfully wrote ${top30.length} articles to public/news.json`);
+    console.log(`[Fetch News] Successfully wrote ${finalItems.length} articles to public/news.json`);
     console.log(`[Fetch News] Generated at: ${outputData.generatedAt}`);
   } catch (error) {
     console.error('[Fetch News] Fatal error:', error);
