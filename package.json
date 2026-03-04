@@ -4,17 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prefetch:news": "node scripts/fetch-news.mjs",
-    "build": "npm run prefetch:news && next build",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "lint": "eslint"
   },
   "dependencies": {
-    "@prisma/client": "^6.1.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -27,7 +21,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "prisma": "^6.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
