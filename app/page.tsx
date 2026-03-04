@@ -1,32 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { NewsItem, NewsResponse } from '@/types/news';
+import type { NewsItem } from '@/types/news';
+
+interface StaticNewsData {
+  items: NewsItem[];
+  generatedAt: string;
+  totalSources: number;
+}
 
 export default function Home() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastFetch, setLastFetch] = useState<string | null>(null);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchNews() {
       try {
         setLoading(true);
-        const response = await fetch('/api/news');
+        const response = await fetch('/adtech-news/news.json');
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data: NewsResponse = await response.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
+        const data: StaticNewsData = await response.json();
 
         setNews(data.items);
-        setLastFetch(data.cachedAt || data.fetchedAt || null);
+        setGeneratedAt(data.generatedAt);
         setError(null);
       } catch (err) {
         console.error('Error fetching news:', err);
@@ -72,9 +74,9 @@ export default function Home() {
           <p className="text-gray-600">
             Latest news from top adtech and marketing sources
           </p>
-          {lastFetch && (
+          {generatedAt && (
             <p className="text-sm text-gray-500 mt-2">
-              Last updated: {formatDate(lastFetch)}
+              Last updated: {formatDate(generatedAt)}
             </p>
           )}
         </header>
